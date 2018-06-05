@@ -3,6 +3,7 @@ package kg.zensoft.pulls;
 import kg.zensoft.pulls.command.*;
 import kg.zensoft.pulls.command.handler.CommandHandler;
 import kg.zensoft.pulls.command.handler.impl.*;
+import kg.zensoft.pulls.model.Command;
 import kg.zensoft.pulls.repository.PullRequestRepository;
 import kg.zensoft.pulls.repository.impl.GitServerPullRequestRepository;
 import kg.zensoft.pulls.service.git.GitServerService;
@@ -13,15 +14,14 @@ import kg.zensoft.pulls.service.json.CustomPullRequestJsonConverter;
 import kg.zensoft.pulls.service.model.PullRequestService;
 import kg.zensoft.pulls.service.model.PullRequestServiceImpl;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class PullRequestRetriever implements UserInteractionService {
     private InputOutputService inputOutputService;
     private UserCommandActionNotifier commandNotifier;
     private PullRequestService pullRequestService;
-    private ShowPullRequestCommandHandler showPullRequestCommandHandler;
-    private HelpCommandHandler helpCommandHandler;
-    private CommandNotFoundHandler commandNotFoundHandler;
-    private ExitCommandHandler exitCommandHandler;
-    private OpenPullRequestInBrowserCommandHandler openPullRequestInBrowserCommandHandler;
+    private Map<Command, CommandHandler> commandHandlerMap;
     private Boolean exit;
     private String initialRepoName;
     private String initialUsername;
@@ -30,19 +30,7 @@ public class PullRequestRetriever implements UserInteractionService {
         this.initialRepoName = initialRepoName;
         this.initialUsername = initialUsername;
         initFields();
-    }
-
-    private void initFields() {
-        exit = false;
-        inputOutputService = new CommandLineInterfaceInputOutputService();
-        GitServerService gitServerService = new GithubServerService();
-        PullRequestRepository pullRequestRepository = new GitServerPullRequestRepository(gitServerService, new CustomPullRequestJsonConverter());
-        pullRequestService = new PullRequestServiceImpl(pullRequestRepository);
-        showPullRequestCommandHandler = new ShowPullRequestCommandHandler(pullRequestService, inputOutputService, initialUsername, initialRepoName);
-        openPullRequestInBrowserCommandHandler = new OpenPullRequestInBrowserCommandHandler(pullRequestService, inputOutputService, initialUsername, initialRepoName);
-        helpCommandHandler = new HelpCommandHandler(inputOutputService);
-        commandNotFoundHandler = new CommandNotFoundHandler(inputOutputService);
-        exitCommandHandler = new ExitCommandHandler(this);
+        initCommandHandlers();
     }
 
     public static void main(String[] args) {
@@ -62,6 +50,29 @@ public class PullRequestRetriever implements UserInteractionService {
         pullRequestRetriever.startUserInteraction();
     }
 
+    private void initCommandHandlers() {
+        ShowPullRequestCommandHandler showPullRequestCommandHandler = new ShowPullRequestCommandHandler(pullRequestService, inputOutputService, initialUsername, initialRepoName);
+        OpenPullRequestInBrowserCommandHandler openPullRequestInBrowserCommandHandler = new OpenPullRequestInBrowserCommandHandler(pullRequestService, inputOutputService, initialUsername, initialRepoName);
+        HelpCommandHandler helpCommandHandler = new HelpCommandHandler(inputOutputService);
+        CommandNotFoundHandler commandNotFoundHandler = new CommandNotFoundHandler(inputOutputService);
+        ExitCommandHandler exitCommandHandler = new ExitCommandHandler(this);
+        commandHandlerMap.put(Command.EXIT, exitCommandHandler);
+        commandHandlerMap.put(Command.HELP, helpCommandHandler);
+        commandHandlerMap.put(Command.LIST_PULL_REQUESTS, showPullRequestCommandHandler);
+        commandHandlerMap.put(Command.OPEN_PULL_REQUESTS, openPullRequestInBrowserCommandHandler);
+        commandHandlerMap.put(null, commandNotFoundHandler);
+    }
+
+    private void initFields() {
+        exit = false;
+        inputOutputService = new CommandLineInterfaceInputOutputService();
+        GitServerService gitServerService = new GithubServerService();
+        PullRequestRepository pullRequestRepository = new GitServerPullRequestRepository(gitServerService, new CustomPullRequestJsonConverter());
+        pullRequestService = new PullRequestServiceImpl(pullRequestRepository);
+        commandHandlerMap = new HashMap<>();
+    }
+
+
     private void showWelcomeText() {
         inputOutputService.printMessage("Welcome to Pull Request Retriever!!!\n");
         inputOutputService.printMessage("This program can show or open you pull requests of a \npublic repositories in Github by a username\n");
@@ -71,29 +82,16 @@ public class PullRequestRetriever implements UserInteractionService {
     public void startUserInteraction() {
         commandNotifier = new UserCommandActionNotifier(inputOutputService);
         commandNotifier.setOnCommandReceive((command) -> {
-            CommandHandler commandHandler = commandNotFoundHandler;
+            CommandHandler commandHandler = commandHandlerMap.get(null);
             if (command == null) {
                 commandHandler.handleCommand();
                 return;
             }
-            switch (command) {
-                case HELP:
-                    commandHandler = helpCommandHandler;
-                    break;
-                case LIST_PULL_REQUESTS:
-                    commandHandler = showPullRequestCommandHandler;
-                    break;
-                case OPEN_PULL_REQUESTS:
-                    commandHandler = openPullRequestInBrowserCommandHandler;
-                    break;
-                case EXIT:
-                    commandHandler = exitCommandHandler;
-                    break;
-            }
+            commandHandler = commandHandlerMap.get(command);
             commandHandler.handleCommand();
         });
         showWelcomeText();
-        helpCommandHandler.handleCommand();
+        commandHandlerMap.get(Command.HELP).handleCommand();
         while (!exit) {
             inputOutputService.printMessage(">");
             commandNotifier.waitUserCommand();
