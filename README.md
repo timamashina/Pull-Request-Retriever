@@ -2,6 +2,10 @@
 This program can show or open you pull requests of a 
 public repositories in Github by a username.
 
+You can pass 2 optional command line arguments:
+1. Repository name
+2. Username that owns repository
+
 Available commands: 
 1. help - Instructions
 2. prs - Lists pull requests links
