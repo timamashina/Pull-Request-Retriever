@@ -82,12 +82,7 @@ public class PullRequestRetriever implements UserInteractionService {
     public void startUserInteraction() {
         commandNotifier = new UserCommandActionNotifier(inputOutputService);
         commandNotifier.setOnCommandReceive((command) -> {
-            CommandHandler commandHandler = commandHandlerMap.get(null);
-            if (command == null) {
-                commandHandler.handleCommand();
-                return;
-            }
-            commandHandler = commandHandlerMap.get(command);
+            CommandHandler commandHandler = commandHandlerMap.get(command);
             commandHandler.handleCommand();
         });
         showWelcomeText();
